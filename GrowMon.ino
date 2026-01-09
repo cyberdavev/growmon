@@ -134,6 +134,9 @@ bool fanActive  = false;
 // Nutrient control state
 bool nutrientOutputOn   = false;
 int  nutrientLastMinute = -1;
+// Nutrient pump safety timeout
+const unsigned long NUTRIENT_MAX_ON_TIME_MS = 60000; // 60 seconds
+unsigned long nutrientOnStartMs = 0;
 
 // Manual override: if true -> outputs follow manualOverrideOutputs[]
 bool manualOverrideEnabled = false;
@@ -568,13 +571,19 @@ void updateAutomation() {
       if (onMin == DISABLED_TIME)  continue;
       if (onMin == (uint16_t)nowMin) {
         nutrientOutputOn = true;
+        nutrientOnStartMs = millis();
         break;
       }
     }
   }
 
-  bool level1On = (digitalRead(inputPins[NUTRIENT_INPUT1_INDEX]) == LOW);
-  bool level2On = (digitalRead(inputPins[NUTRIENT_INPUT2_INDEX]) == LOW);
+  // Safety timeout: force nutrient pump OFF after max on-time
+  if (nutrientOutputOn && (millis() - nutrientOnStartMs >= NUTRIENT_MAX_ON_TIME_MS)) {
+    nutrientOutputOn = false;
+  }
+  // Inverted logic: HIGH = active (level reached)
+  bool level1On = (digitalRead(inputPins[NUTRIENT_INPUT1_INDEX]) == HIGH);
+  bool level2On = (digitalRead(inputPins[NUTRIENT_INPUT2_INDEX]) == HIGH);
 
   if (nutrientOutputOn && !level1On && !level2On) {
     nutrientOutputOn = false;
@@ -810,7 +819,7 @@ String generateHTML() {
 </head>
 <body>
   <div class="container">
-    <h1>ESP32-S2 SCD30 Grow Monitor</h1>
+    <h1>Grow Mon V0.02</h1>
 
     <div class="card">
       <div class="value" id="datetime">Time: --</div>
